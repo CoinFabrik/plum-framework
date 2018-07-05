@@ -1,0 +1,30 @@
+{
+  "name": "plum-framework",
+  "version": "1.0.0",
+  "description": "Plum Ethereum development framework",
+  "main": "index.js",
+  "scripts": {
+    "test": "tests\\test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CoinFabrik/plum-framework.git"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "framework"
+  ],
+  "author": "Mauro H. Leggieri",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/CoinFabrik/plum-framework/issues"
+  },
+  "homepage": "https://github.com/CoinFabrik/plum-framework#readme",
+  "dependencies": {
+    "command-line-args": "^5.0.2",
+    "ganache-cli": "^6.1.4",
+    "solc-native": "git+https://github.com/CoinFabrik/solc-native.git",
+    "web3": "^0.20.6"
+  }
+}
