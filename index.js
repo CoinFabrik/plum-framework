@@ -6,18 +6,18 @@
  * @copyright CoinFabrik, 2018
  * @license MIT
  */
-const path = require('path');
-const fs = require('fs');
-const commandLineArgs = require('command-line-args')
 const Config = require('./src/config.js');
-
 const Compile = require('./src/compile.js');
+const Migrate = require('./src/migrate.js');
 
 //------------------------------------------------------------------------------
 
 var args = process.argv.slice(2);
 var config;
-var actionCode = null, actionCodes = [ Compile ];
+var actionCode = null, actionCodes = [
+	Compile, Migrate
+];
+var working_directory = null;
 
 //if no arguments, show help
 if (args.length < 1) {
@@ -48,30 +48,38 @@ if (!actionCode) {
 	process.exit(1);
 }
 
-//extract global command-line parameters
-var cmdline_opts = commandLineArgs([
-	{ name: 'working-directory', alias: 'd', type: String },
-	{ name: 'help', alias: 'h' }
-], {
-	argv: args
-});
-
-//show action's help if requested
-if (typeof cmdline_opts["help"] !== 'undefined') {
-	actionCode.showHelp();
-	process.exit(1);
+//is the user requesting for action help?
+for (let i = 0; i < args.length; i++) {
+	var arg = args[i].toLowerCase();
+	if (arg == '--help' || arg == '-h') {
+		actionCode.showHelp();
+		process.exit(1);
+	}
 }
 
-//check if a working directory was specified
-if (typeof cmdline_opts["working-directory"] !== 'string')
-	cmdline_opts["working-directory"] = './';
+//extract global command-line parameters
+for (let i = 0; i < args.length; i++) {
+	var arg = args[i].toLowerCase();
+	if (arg == '--working-directory' || arg == '-wd') {
+		if (i + 1 >= args.length) {
+			console.log("Error: Missing value for working directory argument.");
+			process.exit(1);
+		}
+		working_directory = args[i + 1];
+		if (working_directory.length == 0) {
+			console.log("Error: Invalid value for working directory argument.");
+			process.exit(1);
+		}
 
-cmdline_opts["working-directory"] = path.resolve(process.cwd(), cmdline_opts["working-directory"]);
-cmdline_opts["working-directory"] = path.normalize(cmdline_opts["working-directory"] + path.sep);
+		//remove from arguments
+		args.splice(i, 2);
+		break;
+	}
+}
 
 //read configuration settings
 try {
-	config = new Config(cmdline_opts["working-directory"]);
+	config = new Config(working_directory);
 }
 catch (err) {
 	if (err.code === 'ENOENT') {
@@ -84,7 +92,13 @@ catch (err) {
 }
 
 //execute action
-actionCode.run(config, args, cmdline_opts["working-directory"]);
+actionCode.run(config, args).catch((err) => {
+	if (err)
+		console.log("Error: " + err.toString());
+	process.exit(1);
+});
+
+//------------------------------------------------------------------------------
 
 function showHelp()
 {
