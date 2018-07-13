@@ -8,9 +8,9 @@
  */
 const path = require('path');
 const fs = require('fs');
-const commandLineArgs = require('command-line-args')
 const compiler = require('solc-native');
-const helpers = require('./helpers.js');
+const cmdLineParams = require('./cmdlineparams.js')
+const Contract = require('./contract.js');
 
 //------------------------------------------------------------------------------
 
@@ -18,27 +18,22 @@ module.exports.name = 'compile';
 
 module.exports.description = 'Compiles the smart contracts';
 
-module.exports.run = async function (config, args)
+module.exports.run = async function (config, recompileAll)
 {
-	//get command-line options
-	var cmdline_opts = commandLineArgs([
-		{ name: 'all' }
-	], {
-		argv: args
-	});
-
 	var source_files = config.getSourceFiles();
-	if (typeof cmdline_opts.all === 'undefined') {
+
+	//should us recompile all?
+	if (typeof recompileAll === 'undefined') {
+		recompileAll = cmdLineParams.get('all') ? true : false;
+	}
+	if (!recompileAll) {
 		source_files = filterNewerFiles(config, source_files);
 	}
 
-	var source_dir = config.getContractsFolder();
-	var target_dir = config.getBuildFolder();
-
 	for (const source_file of source_files) {
-		var dest_file = target_dir + source_file.substr(0, source_file.length - 3) + 'json';
+		var dest_file = config.directories.build + source_file.substr(0, source_file.length - 3) + 'json';
 
-		await doCompile(source_dir + source_file, dest_file);
+		await doCompile(config.directories.contracts + source_file, dest_file, config);
 	}
 	console.log("Compilation ended.");
 }
@@ -57,11 +52,10 @@ function filterNewerFiles(config, source_files)
 {
 	//get compiled files
 	var compiled_files = config.getCompiledFiles();
-	if (compiled_files.length == 0)
+	if (compiled_files.length == 0) {
 		return source_files;
+	}
 
-	var source_dir = config.getContractsFolder();
-	var target_dir = config.getBuildFolder();
 	var final_files = [];
 
 	for (let i = 0; i < source_files.length; i++) {
@@ -75,14 +69,14 @@ function filterNewerFiles(config, source_files)
 		if (ndx >= 0) {
 			//match found, check last write time of both
 			try {
-				var src_stat = fs.statSync(source_dir + source_files[i]);
-				var dest_stat = fs.statSync(target_dir + compiled_files[ndx]);
+				var src_stat = fs.statSync(config.directories.contracts + source_files[i]);
+				var dest_stat = fs.statSync(config.directories.build + compiled_files[ndx]);
 				if (src_stat.mtime > dest_stat.mtime) {
 					//source is newer, add to list
 					final_files.push(source_files[i]);
 				}
 				else {
-					console.log("Skipping '" + source_dir + source_files[i] + "'...");
+					console.log("Skipping '" + config.directories.contracts + source_files[i] + "'...");
 				}
 			}
 			catch (err) {
@@ -99,7 +93,7 @@ function filterNewerFiles(config, source_files)
 	return final_files;
 }
 
-async function doCompile(source_file, dest_file)
+async function doCompile(source_file, dest_file, config)
 {
 	console.log("Compiling '" + source_file + "'...");
 
@@ -139,9 +133,8 @@ async function doCompile(source_file, dest_file)
 		});
 		if (obj) {
 			try {
-				helpers.mkdirRecursiveSync(path.dirname(dest_file));
-
-				fs.writeFileSync(dest_file, JSON.stringify(obj, null, 2));
+				var contract = new Contract(obj, config);
+				await contract.save(dest_file);
 			}
 			catch (err) {
 				throw new Error("Unable to save output: " + err.toString());

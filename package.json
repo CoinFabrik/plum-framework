@@ -22,8 +22,8 @@
   },
   "homepage": "https://github.com/CoinFabrik/plum-framework#readme",
   "dependencies": {
-    "command-line-args": "^5.0.2",
     "ganache-cli": "^6.1.4",
+    "original-require": "^1.0.1",
     "solc-native": "git+https://github.com/CoinFabrik/solc-native.git",
     "web3": "^0.20.6"
   }

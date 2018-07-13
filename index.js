@@ -8,37 +8,37 @@
  */
 const Config = require('./src/config.js');
 const Compile = require('./src/compile.js');
-const Migrate = require('./src/migrate.js');
+const Deploy = require('./src/deploy.js');
+const cmdLineParams = require('./src/cmdlineparams.js')
 
 //------------------------------------------------------------------------------
 
-var args = process.argv.slice(2);
 var config;
 var actionCode = null, actionCodes = [
-	Compile, Migrate
+	Compile, Deploy
 ];
-var working_directory = null;
 
-//if no arguments, show help
-if (args.length < 1) {
-	console.log("Error: Action to execute not specified.");
-	showHelp();
-	process.exit(1);
-}
+if (cmdLineParams.getAction().length == 0) {
+	//no action specified
+	if (!cmdLineParams.hasArgs()) {
+		console.log("Error: Action to execute not specified.");
+		showHelp();
+		process.exit(1);
+	}
 
-//extract action to execute
-action = args[0].toLowerCase();
-args = args.slice(1);
-
-//is help?
-if (action == '--help' || action == '-h') {
-	showHelp();
+	//is help?
+	if (cmdLineParams.get('help', 'h')) {
+		showHelp();
+	}
+	else {
+		console.log("Error: No action specified. Run 'plum --help' to get assistance.");
+	}
 	process.exit(1);
 }
 
 //map action to action code
 for (let i = 0; i < actionCodes.length; i++) {
-	if (action == actionCodes[i].name) {
+	if (cmdLineParams.getAction() == actionCodes[i].name) {
 		actionCode = actionCodes[i];
 		break;
 	}
@@ -49,52 +49,22 @@ if (!actionCode) {
 }
 
 //is the user requesting for action help?
-for (let i = 0; i < args.length; i++) {
-	var arg = args[i].toLowerCase();
-	if (arg == '--help' || arg == '-h') {
-		actionCode.showHelp();
-		process.exit(1);
-	}
-}
-
-//extract global command-line parameters
-for (let i = 0; i < args.length; i++) {
-	var arg = args[i].toLowerCase();
-	if (arg == '--working-directory' || arg == '-wd') {
-		if (i + 1 >= args.length) {
-			console.log("Error: Missing value for working directory argument.");
-			process.exit(1);
-		}
-		working_directory = args[i + 1];
-		if (working_directory.length == 0) {
-			console.log("Error: Invalid value for working directory argument.");
-			process.exit(1);
-		}
-
-		//remove from arguments
-		args.splice(i, 2);
-		break;
-	}
-}
-
-//read configuration settings
-try {
-	config = new Config(working_directory);
-}
-catch (err) {
-	if (err.code === 'ENOENT') {
-		console.log("Error: Missing configuration file. Cannot proceed.");
-	}
-	else {
-		console.log(err.toString());
-	}
+if (cmdLineParams.get('help', 'h')) {
+	actionCode.showHelp();
 	process.exit(1);
 }
 
-//execute action
-actionCode.run(config, args).catch((err) => {
-	if (err)
-		console.log("Error: " + err.toString());
+//read configuration settings
+Config.setup().then((config) => {
+	//execute action
+	return actionCode.run(config);
+}).catch((err) => {
+	if (err) {
+		if (err.stack)
+			console.log(err.stack);
+		else
+			console.log(err.toString());
+	}
 	process.exit(1);
 });
 

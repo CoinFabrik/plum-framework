@@ -9,231 +9,238 @@
 const path = require('path');
 const fs = require('fs');
 const helpers = require('./helpers.js');
-const Web3 = require('web3');
 const BigNumber = require('bignumber.js');
+const cmdLineParams = require('./cmdlineparams.js')
 
-var DEFAULT_CONFIG_FILENAME = "plum_settings.json"; 
+var DEFAULT_CONFIG_FILENAME = "plum_settings.js"; 
 
 //------------------------------------------------------------------------------
 
-function Config(working_directory)
-{
-	var self = this;
-
-	if (!working_directory)
-		working_directory = '.' + path.sep;
-
-	working_directory = path.resolve(process.cwd(), working_directory);
-	working_directory = path.normalize(working_directory + path.sep);
-
-	json = fs.readFileSync(working_directory + DEFAULT_CONFIG_FILENAME, {encoding: 'utf8'});
-	try {
-		json = JSON.parse(json);
-	}
-	catch (err) {
-		if (err.code === 'ENOENT') {
-			throw new Error("Missing configuration file.");
-		}
-		throw new Error("Invalid configuration file.");
-	}
-
-	this.config = Object.assign({}, json);
-	if (typeof this.config.networks !== 'object' || Object.prototype.toString.call(this.config.networks) == '[object Array]') {
-		throw new Error("Missing networks in configuration file.");
-	}
-
-	Object.keys(this.config.networks).forEach(function (key) {
-		var network = self.config.networks[key];
-
-		if (!(network.provider)) {
-			if (typeof network.host !== 'string' || network.host.length == 0) {
-				throw new Error("Invalid host for network '" + key + "'.");
-			}
-
-			if (typeof network.port !== 'undefined') {
-				if (typeof network.port !== 'number' || (network.port % 1) !== 0 || network.port < 1 || network.port > 65535) {
-					throw new Error("Invalid port for network '" + key + "'.");
-				}
-			}
-			else {
-				network.port = 8545;
-			}
-		}
-
-		if (typeof network.network_id !== 'undefined') {
-			if (typeof network.network_id === 'string' && network.network_id == "*") {
-				network.network_id = 0;
-			}
-			else if (typeof network.network_id !== 'number' || (network.network_id % 1) !== 0 || network.network_id < 0) {
-				throw new Error("Invalid id for network '" + key + "'.");
-			}
-		}
-		else {
-			network.network_id = 0;
-		}
-
-		if (typeof network.gas !== 'undefined') {
-			try {
-				network.gas = new BigNumber(network.gas);
-			}
-			catch (err) {
-				throw new Error("Invalid gas value for network '" + key + "'.");
-			}
-		}
-		else {
-			network.gas = new BigNumber(6721975);
-		}
-
-		if (typeof network.gasPrice !== 'undefined') {
-			try {
-				network.gasPrice = new BigNumber(network.gasPrice);
-			}
-			catch (err) {
-				throw new Error("Invalid gas price value for network '" + key + "'.");
-			}
-		}
-		else {
-			network.gasPrice = new BigNumber(100000000000);
-		}
-		
-		if (typeof network.from !== 'undefined') {
-			network.from = helpers.validateAddress(network.from);
-			if (!(network.from))
-			throw new Error("Invalid 'from' address for network '" + key + "'.");
-		}
-		else {
-			network.from = null;
-		}
-	});
-
-	if (typeof this.config.compiler === 'undefined') {
-		this.config.compiler = {};
-	}
-	if (typeof this.config.compiler !== 'object' || Object.prototype.toString.call(this.config.compiler) == '[object Array]') {
-		throw new Error("Invalid compiler options in configuration file.");
-	}
-
-	this.config.compiler = Object.assign( {
-		"optimizer": {
-			"enabled": false,
-			"runs": 0
-		}
-	}, this.config.compiler);
-
-	if (typeof this.config.compiler.optimizer.enabled !== 'boolean') {
-		if (this.config.compiler.optimizer.enabled !== 'number') {
-			throw new Error("Invalid compiler optimization options in configuration file.");
-		}
-		var enabled = parseInt(this.config.compiler.optimizer.enabled);
-		if (enabled == NaN) {
-			throw new Error("Invalid compiler optimization options in configuration file.");
-		}
-		this.config.compiler.optimizer.enabled = (enabled != 0) ? true : false;
-	}
-	
-	if (typeof this.config.compiler.optimizer.runs !== 'undefined') {
-		if (typeof this.config.compiler.optimizer.runs !== 'number' || (this.config.compiler.optimizer.runs % 1) !== 0 || this.config.compiler.optimizer.runs < 0) {
-			throw new Error("Invalid compiler optimization runs count in configuration file.");
-		}
-	}
-	else {
-		this.config.compiler.optimizer.runs = 0;
-	}
-
-	if (typeof this.config.directories === 'undefined') {
-		this.config.directories = {};
-	}
-	if (typeof this.config.directories !== 'object' || Object.prototype.toString.call(this.config.directories) == '[object Array]') {
-		throw new Error("Invalid directories section in configuration file.");
-	}
-
-	this.config.directories = Object.assign( {
-		"contracts": "./contracts",
-		"build": "./build",
-	}, this.config.directories);
-
-	if (typeof this.config.directories.contracts !== 'string') {
-		throw new Error("Invalid contracts directory in configuration file.");
-	}
-	if (typeof this.config.directories.build !== 'string') {
-		throw new Error("Invalid build directory in configuration file.");
-	}
-
-	this.config.directories.base = working_directory;
-	this.config.directories.contracts = path.normalize(path.resolve(working_directory, this.config.directories.contracts) + path.sep);
-	this.config.directories.build = path.normalize(path.resolve(working_directory, this.config.directories.build) + path.sep);
-}
-
-Config.prototype.getNetwork = function (network_name, cb)
+module.exports.setup = function ()
 {
 	return new Promise((resolve, reject) => {
-		if (typeof this.config.networks[network_name] === 'undefined') {
-			reject(new Error("Undefined network"));
+		//get working directory override from command-line
+		var working_directory = cmdLineParams.get('working-directory', 'wd', true);
+		if (working_directory instanceof Error) {
+			reject(working_directory);
 			return;
 		}
-		var network = this.config.networks[network_name];
-		var provider;
-
-		if (network.provider && typeof network.provider == "function") {
-			provider = network.provider();
-		}
-		else if (network.provider) {
-			provider = network.provider;
-		}
-		else {
-			provider = new Web3.providers.HttpProvider("http://" + network.host + ":" + network.port);
-		}
-		
-		//augment "provider"
-		provider.getGas = function () {
-			return network.gas;
-		};
-
-		provider.getGasPrice = function () {
-			return network.gasPrice;
-		};
-
-		provider.getSender = function () {
-			return network.from;
-		};
-
-		web3.eth.getCoinbase(function(err, coinbase) {
-			if (err) {
-				reject(new Error("Could not connect to your RPC client. Please check your RPC configuration."));
+		if (working_directory !== null) {
+			if (working_directory.length == 0) {
+				reject(new Error("Invalid value for working directory argument."));
 				return;
 			}
+		}
+		else {
+			working_directory = '.' + path.sep;
+		}
 
-			resolve(provider);
-		});
+		working_directory = path.resolve(process.cwd(), working_directory);
+		working_directory = path.normalize(working_directory + path.sep);
+
+		try {
+			json = require(working_directory + DEFAULT_CONFIG_FILENAME);
+		}
+		catch (err) {
+			if (err.code === 'MODULE_NOT_FOUND') {
+				reject(new Error("Missing configuration file. Cannot proceed."));
+			}
+			else {
+				reject(err);
+			}
+			return;
+		}
+
+		var config = Object.assign({}, json);
+		if (typeof config.networks !== 'object' || Object.prototype.toString.call(config.networks) == '[object Array]') {
+			reject(new Error("Missing networks in configuration file."));
+			return;
+		}
+
+		try {
+			Object.keys(config.networks).forEach(function (key) {
+				var network = config.networks[key];
+
+				if (!(network.provider)) {
+					if (typeof network.host !== 'string' || network.host.length == 0) {
+						throw new Error("Invalid host for network '" + key + "'.");
+					}
+
+					if (typeof network.port !== 'undefined') {
+						if (typeof network.port !== 'number' || (network.port % 1) !== 0 || network.port < 1 || network.port > 65535) {
+							throw new Error("Invalid port for network '" + key + "'.");
+						}
+					}
+					else {
+						network.port = 8545;
+					}
+
+					if (typeof network.secure !== 'undefined') {
+						if (typeof network.secure !== 'boolean') {
+							if (network.secure !== 'number') {
+								throw new Error("Invalid secure value for network '" + key + "'.");
+							}
+							var secure = parseInt(network.secure);
+							if (secure == NaN) {
+								throw new Error("Invalid secure value for network '" + key + "'.");
+							}
+							network.secure = (secure != 0) ? true : false;
+						}
+					}
+					else {
+						network.secure = false;
+					}
+				}
+
+				if (typeof network.network_id !== 'undefined') {
+					if (typeof network.network_id === 'string' && network.network_id == "*") {
+						network.network_id = 0;
+					}
+					else if (typeof network.network_id !== 'number' || (network.network_id % 1) !== 0 || network.network_id < 0) {
+						throw new Error("Invalid id for network '" + key + "'.");
+					}
+				}
+				else {
+					network.network_id = 0;
+				}
+
+				if (typeof network.gas !== 'undefined') {
+					try {
+						network.gas = new BigNumber(network.gas);
+					}
+					catch (err) {
+						throw new Error("Invalid gas value for network '" + key + "'.");
+					}
+				}
+
+				if (typeof network.gasPrice !== 'undefined') {
+					try {
+						network.gasPrice = new BigNumber(network.gasPrice);
+					}
+					catch (err) {
+						throw new Error("Invalid gas price value for network '" + key + "'.");
+					}
+				}
+				
+				if (typeof network.from !== 'undefined') {
+					network.from = helpers.validateAddress(network.from);
+					if (!(network.from)) {
+						throw new Error("Invalid 'from' address for network '" + key + "'.");
+					}
+				}
+			});
+		}
+		catch (err) {
+			reject(err);
+			return;
+		}
+
+		if (typeof config.compiler === 'undefined') {
+			config.compiler = {};
+		}
+		if (typeof config.compiler !== 'object' || Object.prototype.toString.call(config.compiler) == '[object Array]') {
+			reject(new Error("Invalid compiler options in configuration file."));
+			return;
+		}
+
+		config.compilerOptions = Object.assign( {
+			"optimizer": {
+				"enabled": false,
+				"runs": 0
+			}
+		}, config.compiler);
+		delete config.compiler;
+
+		if (typeof config.compilerOptions.optimizer.enabled !== 'boolean') {
+			if (config.compilerOptions.optimizer.enabled !== 'number') {
+				reject(new Error("Invalid compiler optimization options in configuration file."));
+				return;
+			}
+			var enabled = parseInt(config.compilerOptions.optimizer.enabled);
+			if (enabled == NaN) {
+				reject(new Error("Invalid compiler optimization options in configuration file."));
+				return;
+			}
+			config.compilerOptions.optimizer.enabled = (enabled != 0) ? true : false;
+		}
+		
+		if (typeof config.compilerOptions.optimizer.runs !== 'undefined') {
+			if (typeof config.compilerOptions.optimizer.runs !== 'number' || (config.compilerOptions.optimizer.runs % 1) !== 0 || config.compilerOptions.optimizer.runs < 0) {
+				reject(new Error("Invalid compiler optimization runs count in configuration file."));
+				return;
+			}
+		}
+		else {
+			config.compilerOptions.optimizer.runs = 0;
+		}
+
+		if (typeof config.directories === 'undefined') {
+			config.directories = {};
+		}
+		if (typeof config.directories !== 'object' || Object.prototype.toString.call(config.directories) == '[object Array]') {
+			reject(new Error("Invalid directories section in configuration file."));
+			return;
+		}
+
+		config.directories = Object.assign( {
+			"contracts": "./contracts",
+			"build": "./build",
+		}, config.directories);
+
+		if (typeof config.directories.contracts !== 'string') {
+			reject(new Error("Invalid contracts directory in configuration file."));
+			return;
+		}
+		if (typeof config.directories.build !== 'string') {
+			reject(new Error("Invalid build directory in configuration file."));
+			return;
+		}
+
+		config.directories.base = working_directory;
+		config.directories.contracts = path.normalize(path.resolve(working_directory, config.directories.contracts) + path.sep);
+		config.directories.build = path.normalize(path.resolve(working_directory, config.directories.build) + path.sep);
+
+		//get network from command-line or set default
+		config.network_name = cmdLineParams.get('network', null, true);
+		if (config.network_name instanceof Error) {
+			reject(config.network_name);
+			return;
+		}
+		if (config.network_name === null || config.network_name.length == 0) {
+			config.network_name = 'development';
+		}
+
+		var selectedNetwork = null;
+		if (typeof selectedNetwork !== 'undefined') {
+			selectedNetwork = config.networks[config.network_name];
+		}
+
+		//public functions
+		config.getSourceFiles = function ()
+		{
+			return readdir_recursive(config.directories.contracts, 'sol');
+		};
+
+		config.getCompiledFiles = function ()
+		{
+			return readdir_recursive(config.directories.build, 'json');
+		};
+
+		config.getSelectedNetwork = function ()
+		{
+			return new Promise((resolve, reject) => {
+				if (selectedNetwork)
+					resolve(selectedNetwork);
+				else
+					reject(new Error("Undefined network."));
+			});
+		};
+
+		
+
+		resolve(config);
 	});
 }
-
-Config.prototype.getCompilerOptions = function ()
-{
-	return Object.assign({}, this.config.compiler);
-}
-
-Config.prototype.getContractsFolder = function ()
-{
-	return this.config.directories.contracts;
-}
-
-Config.prototype.getSourceFiles = function ()
-{
-	return readdir_recursive(this.config.directories.contracts, 'sol');
-}
-
-Config.prototype.getBuildFolder = function ()
-{
-	return this.config.directories.build;
-}
-
-Config.prototype.getCompiledFiles = function ()
-{
-	return readdir_recursive(this.config.directories.build, 'json');
-}
-
-module.exports = Config;
 
 //------------------------------------------------------------------------------
 

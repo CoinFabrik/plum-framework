@@ -46,3 +46,16 @@ module.exports.mkdirRecursiveSync = function(dir)
 		}
 	}
 }
+
+module.exports.toInteger = function (value)
+{
+	if (typeof value === 'string') {
+		value = parseInt(value);
+		if (value == NaN)
+			return null;
+	}
+	if (typeof value !== 'number' || (value % 1) !== 0) {
+		return null;
+	}
+	return null;
+}
