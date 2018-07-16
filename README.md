@@ -1,4 +1,4 @@
-<img src="plum.png" width="200" height="200">
+<img src="plum.png" width="159" height="200">
 
 # Plum Ethereum development framework
 
