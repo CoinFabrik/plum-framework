@@ -150,4 +150,9 @@ contract SampleToken {
     function testMint(address receiver, uint256 amount) public {
         mintInternal(receiver, amount);
     }
+
+    function doClamp(uint256 a) public pure returns (uint256) {
+        uint256 c = SafeMath.clamp(a, 1, 100);
+        return c;
+    }
 }

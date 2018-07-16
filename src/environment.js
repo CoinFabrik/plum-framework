@@ -31,12 +31,10 @@ module.exports.setup = function (config)
 				provider = new Web3.providers.HttpProvider(scheme + "://" + network.host + ":" + network.port.toString());
 			}
 
-			
-
 			env.web3 = new Web3();
 			env.web3.setProvider(provider);
 
-			if (network.network_id == 0) {
+			if (typeof network.network_id === 'undefined' || network.network_id == 0) {
 				var getNetworkPromise = util.promisify(env.web3.version.getNetwork);
 
 				try {
@@ -51,7 +49,7 @@ module.exports.setup = function (config)
 			}
 
 			var getAccountsPromise = util.promisify(env.web3.eth.getAccounts);
-			let accounts = await getAccountsPromise();
+			env.accounts = await getAccountsPromise();
 
 			env.configureTxOptions = function (tx_opts) {
 				if (typeof tx_opts.gas === 'undefined') {
@@ -70,7 +68,7 @@ module.exports.setup = function (config)
 					if (typeof network.from !== 'undefined')
 						tx_opts.from = network.from;
 					else
-						tx_opts.from = accounts[0];
+						tx_opts.from = env.accounts[0];
 				}
 			};
 

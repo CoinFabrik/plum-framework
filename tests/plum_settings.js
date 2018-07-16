@@ -11,7 +11,7 @@ module.exports = {
 	},
 	compiler: {
 		optimizer: {
-			enabled: true,
+			enabled: false,
 			runs: 0
 		}
 	}

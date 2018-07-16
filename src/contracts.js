@@ -21,6 +21,16 @@ module.exports.initialize = function (env)
 			for (let i = 0; i < compiled_files.length; i++) {
 				var contract = new Contract(env.config.directories.build + compiled_files[i], env);
 				contracts[contract.contractName] = contract;
+
+				contract.on('address_changed', function () {
+					var self = this;
+					var address = this.getAddress();
+
+					Object.keys(contracts).forEach(function (key) {
+						if (key != self.contractName)
+							contracts[key].addLink(self.contractName, address);
+					});
+				});
 			}
 		}
 		catch (err) {

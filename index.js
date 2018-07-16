@@ -9,13 +9,14 @@
 const Config = require('./src/config.js');
 const Compile = require('./src/compile.js');
 const Deploy = require('./src/deploy.js');
+const Exec = require('./src/exec.js');
 const cmdLineParams = require('./src/cmdlineparams.js')
 
 //------------------------------------------------------------------------------
 
 var config;
 var actionCode = null, actionCodes = [
-	Compile, Deploy
+	Compile, Deploy, Exec
 ];
 
 if (cmdLineParams.getAction().length == 0) {

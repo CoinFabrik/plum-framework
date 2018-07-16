@@ -210,11 +210,6 @@ module.exports.setup = function ()
 			config.network_name = 'development';
 		}
 
-		var selectedNetwork = null;
-		if (typeof selectedNetwork !== 'undefined') {
-			selectedNetwork = config.networks[config.network_name];
-		}
-
 		//public functions
 		config.getSourceFiles = function ()
 		{
@@ -229,14 +224,12 @@ module.exports.setup = function ()
 		config.getSelectedNetwork = function ()
 		{
 			return new Promise((resolve, reject) => {
-				if (selectedNetwork)
-					resolve(selectedNetwork);
+				if (typeof config.networks[config.network_name] === 'object')
+					resolve(config.networks[config.network_name]);
 				else
 					reject(new Error("Undefined network."));
 			});
 		};
-
-		
 
 		resolve(config);
 	});

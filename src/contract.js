@@ -8,6 +8,7 @@
  */
 const path = require('path');
 const fs = require('fs');
+const EventEmitter = require('events');
 const helpers = require('./helpers.js');
 
 //------------------------------------------------------------------------------
@@ -48,16 +49,16 @@ function Contract(source, env, config)
 
 		Object.keys(json.networks).forEach(function (key) {
 			key = parseInt(key);
-			if (Key != NaN && key > 0 && typeof final_networks[key] === 'undefined') {
-				var network = json.networks[i];
+			if (key != NaN && key > 0 && typeof final_networks[key] === 'undefined') {
+				var network = json.networks[key];
 
 				var address = helpers.validateAddress(network.address);
 				var lastUpdate = Date.parse(network.lastUpdate);
 				if (address && lastUpdate != NaN) {
 					var links = {};
-					if (typeof networks.links === 'object' && Object.prototype.toString.call(networks.links) != '[object Array]') {
-						Object.keys(networks.links).forEach(function (nl_key) {
-							var nl_address = helpers.validateAddress(networks.links[nl_key].address);
+					if (typeof network.links === 'object' && Object.prototype.toString.call(network.links) != '[object Array]') {
+						Object.keys(network.links).forEach(function (nl_key) {
+							var nl_address = helpers.validateAddress(network.links[nl_key].address);
 							if (nl_address) {
 								links[nl_key] = nl_address;
 							}
@@ -110,6 +111,8 @@ function Contract(source, env, config)
 				start: idx,
 				len: 40
 			});
+
+			idx += 40;
 		}
 		else {
 			throw new Error("Invalid bytecode.");
@@ -124,6 +127,8 @@ function Contract(source, env, config)
 	this.contractName = json.contractName;
 }
 
+Contract.prototype.__proto__ = EventEmitter.prototype;
+
 Contract.prototype.setAddress = function (address)
 {
 	if (!this.env) {
@@ -133,12 +138,34 @@ Contract.prototype.setAddress = function (address)
 
 	address = validateAddress(address);
 
+	if (typeof this.json.networks !== 'object') {
+		this.json.networks = {};
+	}
 	if (typeof this.json.networks[network_id] !== 'object') {
 		this.json.networks[network_id] = {};
 	}
 	this.json.networks[network_id].address = address;
-	this.json.networks[network_id].lastUpdate = Date.now;
+	this.json.networks[network_id].lastUpdate = Date.now();
 	this._dirty = true;
+
+	this.emit('address_changed');
+}
+
+Contract.prototype.getAddress = function ()
+{
+	if (!this.env) {
+		throw new Error("Environment not set.");
+	}
+	var network_id = this.env.network_id;
+
+	if (typeof this.json.networks === 'object') {
+		if (typeof this.json.networks[network_id] === 'object') {
+			if (typeof this.json.networks[network_id].address === 'string') {
+				return this.json.networks[network_id].address;
+			}
+		}
+	}
+	return null;
 }
 
 Contract.prototype.clearLinks = function ()
@@ -150,6 +177,9 @@ Contract.prototype.clearLinks = function ()
 
 	address = validateAddress(address);
 
+	if (typeof this.json.networks !== 'object') {
+		this.json.networks = {};
+	}
 	if (typeof this.json.networks[network_id] !== 'object') {
 		this.json.networks[network_id] = {};
 	}
@@ -168,17 +198,25 @@ Contract.prototype.addLink = function (contractName, address)
 	if (contractName.length == 0) {
 		throw new Error("Invalid contract name.");
 	}
-	address = validateAddress(address);
 
-	if (typeof this.json.networks[network_id] !== 'object') {
-		this.json.networks[network_id] = {};
-	}
-	if (typeof this.json.networks[network_id].links !== 'object') {
-		this.json.networks[network_id].links = {};
-	}
-	this.json.networks[network_id].links[contractName] = address;
-	this.json.networks[network_id].lastUpdate = Date.now;
-	this._dirty = true;
+	if (this.linksCache.find(function (element) {
+				return element.name == contractName;
+			})) {
+		address = validateAddress(address);
+
+		if (typeof this.json.networks !== 'object') {
+			this.json.networks = {};
+		}
+		if (typeof this.json.networks[network_id] !== 'object') {
+			this.json.networks[network_id] = {};
+		}
+		if (typeof this.json.networks[network_id].links !== 'object') {
+			this.json.networks[network_id].links = {};
+		}
+		this.json.networks[network_id].links[contractName] = address;
+		this.json.networks[network_id].lastUpdate = Date.now;
+		this._dirty = true;
+	};
 }
 
 Contract.prototype.buildBytecode = function ()
@@ -193,10 +231,7 @@ Contract.prototype.buildBytecode = function ()
 	if (this.linksCache.length == 0) {
 		return this.json.bytecode;
 	}
-	if (typeof this.json.networks[network_id] !== 'object') {
-		throw new Error("Network '" + network_id.toString() + "' not defined.");
-	}
-	if (typeof this.json.networks[network_id].links !== 'object') {
+	if (typeof this.json.networks !== 'object' || typeof this.json.networks[network_id] !== 'object' || typeof this.json.networks[network_id].links !== 'object') {
 		throw new Error("Links not defined in network '" + network_id.toString() + "'.");
 	}
 
@@ -237,6 +272,43 @@ Contract.prototype.setDefaultTxOptions = function (tx_opts)
 	this.default_tx_opts = tx_opts;
 }
 
+Contract.prototype.deployed = function ()
+{
+	var self = this;
+
+	return new Promise((resolve, reject) => {
+		if (!self.env) {
+			reject(new Error("Environment not set."));
+			return;
+		}
+
+		let address = helpers.validateAddress(self.getAddress());
+		if (!address) {
+			reject(new Error("Unable to find deployed contract in network '" + self.env.network_id.toString() + "'."));
+			return;
+		}
+
+		let ContractDef = self.env.web3.eth.contract(self.json.abi);
+		self.env.web3.eth.getCode(address, function(err, code) {
+			if (err) {
+				reject(err);
+				return;
+			}
+
+			if (!code || code.replace("0x", "").replace(/0/g, "") === '') {
+			  reject(new Error("Cannot detect instance of " + self.json.contractName + "; no code at address " + address));
+			  return;
+			}
+
+			var instance = ContractDef.at(address);
+
+			override(instance, self);
+
+			resolve(instance);
+		});
+	});
+}
+
 Contract.prototype.at = function (address)
 {
 	var self = this;
@@ -254,7 +326,7 @@ Contract.prototype.at = function (address)
 		}
 
 		let ContractDef = self.env.web3.eth.contract(self.json.abi);
-		self.web3.eth.getCode(address, function(err, code) {
+		self.env.web3.eth.getCode(address, function(err, code) {
 			if (err) {
 				reject(err);
 				return;
@@ -325,6 +397,8 @@ Contract.prototype.new = function ()
 			if (instance != null && instance.address != null) {
 				override(instance, self);
 
+				self.setAddress(instance.address);
+
 				resolve(instance);
 			}
 		});
@@ -354,21 +428,21 @@ function override(instance, _this)
 
 		if (abi_item.type == "function") {
 			if (abi_item.constant == true) {
-				new_api[abi_item.name] = convertToPromise(instance[abi_item.name], _this);
+				new_api[abi_item.name] = convertToPromise(instance, instance[abi_item.name], _this);
 			}
 			else {
-				new_api[abi_item.name] = convertToPromise(instance[abi_item.name], _this, true);
+				new_api[abi_item.name] = convertToPromise(instance, instance[abi_item.name], _this, true);
 			}
 
-			new_api[abi_item.name].call = convertToPromise(instance[abi_item.name].call, _this);
-			new_api[abi_item.name].sendTransaction = convertToPromise(instance[abi_item.name].sendTransaction, _this);
+			new_api[abi_item.name].call = convertToPromise(instance, instance[abi_item.name].call, _this);
+			new_api[abi_item.name].sendTransaction = convertToPromise(instance, instance[abi_item.name].sendTransaction, _this);
 			new_api[abi_item.name].request = instance[abi_item.name].request;
-			new_api[abi_item.name].estimateGas = convertToPromise(instance[abi_item.name].estimateGas, _this);
+			new_api[abi_item.name].estimateGas = convertToPromise(instance, instance[abi_item.name].estimateGas, _this);
 		}
 	}
 
 	//add a send transaction
-	new_api.sendTransaction = convertToPromise(function (tx_opts, callback) {
+	new_api.sendTransaction = convertToPromise(instance, function (tx_opts, callback) {
 		if (typeof tx_opts == "function") {
 			callback = tx_opts;
 			tx_opts = {};
@@ -391,7 +465,7 @@ function override(instance, _this)
 	});
 }
 
-function convertToPromise(api_call, _this, makeSync)
+function convertToPromise(instance, api_call, _this, makeSync)
 {
 	return function() {
 		var args = Array.prototype.slice.call(arguments);
@@ -403,7 +477,7 @@ function convertToPromise(api_call, _this, makeSync)
 			tx_opts = args.pop();
 		}
 
-		tx_opts = Object.assign( _this.default_tx_opts, tx_opts);
+		tx_opts = Object.assign(_this.default_tx_opts, tx_opts);
 
 		return new Promise((resolve, reject) => {
 			var cb = function(err, res) {
@@ -482,7 +556,7 @@ function convertToPromise(api_call, _this, makeSync)
 				}
 			};
 
-			self.env.configureTxOptions(tx_opts);
+			_this.env.configureTxOptions(tx_opts);
 
 			args.push(tx_opts, cb);
 			api_call.apply(instance, args);
