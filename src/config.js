@@ -12,9 +12,9 @@ const helpers = require('./helpers.js');
 const BigNumber = require('bignumber.js');
 const cmdLineParams = require('./cmdlineparams.js')
 
-var DEFAULT_CONFIG_FILENAME = "plum_settings.js"; 
-
 //------------------------------------------------------------------------------
+
+module.exports.DEFAULT_CONFIG_FILENAME = "plum_settings.js";
 
 module.exports.setup = function ()
 {
@@ -39,7 +39,7 @@ module.exports.setup = function ()
 		working_directory = path.normalize(working_directory + path.sep);
 
 		try {
-			json = require(working_directory + DEFAULT_CONFIG_FILENAME);
+			json = require(working_directory + module.exports.DEFAULT_CONFIG_FILENAME);
 		}
 		catch (err) {
 			if (err.code === 'MODULE_NOT_FOUND') {
