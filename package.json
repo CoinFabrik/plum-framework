@@ -24,7 +24,7 @@
   "dependencies": {
     "ganache-cli": "^6.1.4",
     "original-require": "^1.0.1",
-    "solc-native": "git+https://github.com/CoinFabrik/solc-native.git",
+    "solc-native": "^1.0.0",
     "web3": "^0.20.6"
   }
 }
