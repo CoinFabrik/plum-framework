@@ -1,14 +1,7 @@
-/**
- * [plum-framework]{@link https://github.com/CoinFabrik/plum-framework}
- *
- * @version 1.0.0
- * @author Mauro H. Leggieri
- * @copyright CoinFabrik, 2018
- * @license MIT
- */
 const path = require('path');
 const fs = require('fs');
 const EventEmitter = require('events');
+const BigNumber = require('bignumber.js');
 const helpers = require('./helpers.js');
 
 //------------------------------------------------------------------------------
@@ -36,7 +29,7 @@ function Contract(source, env, config)
 	if (typeof json.contractName !== 'string' || json.contractName.length == 0) {
 		throw new Error("Invalid contract.");
 	}
-	if (typeof json.abi !== 'object' || Object.prototype.toString.call(json.abi) != '[object Array]') {
+	if (!helpers.isArray(json.abi)) {
 		throw new Error("Invalid contract.");
 	}
 	if (typeof json.bytecode !== 'string') {
@@ -44,19 +37,39 @@ function Contract(source, env, config)
 	}
 
 	//validate networks
-	if (typeof json.networks === 'object' && Object.prototype.toString.call(json.networks) != '[object Array]') {
+	if (helpers.isNonArrayObject(json.networks)) {
 		var final_networks = {};
 
 		Object.keys(json.networks).forEach(function (key) {
 			key = parseInt(key);
 			if (key != NaN && key > 0 && typeof final_networks[key] === 'undefined') {
 				var network = json.networks[key];
+				var address, lastUpdate;
 
-				var address = helpers.validateAddress(network.address);
-				var lastUpdate = Date.parse(network.lastUpdate);
+				if (helpers.isArray(network.address)) {
+					if (network.address.length > 0) {
+						address = [];
+						for (let i = 0; i < network.address.length; i++) {
+							let _address = helpers.validateAddress(network.address[i]);
+							if (!_address) {
+								address = null;
+								break;
+							}
+							address.push(_address);
+						}
+					}
+					else {
+						address = null;
+					}
+				}
+				else {
+					address = helpers.validateAddress(network.address);
+				}
+				lastUpdate = Date.parse(network.lastUpdate);
 				if (address && lastUpdate != NaN) {
 					var links = {};
-					if (typeof network.links === 'object' && Object.prototype.toString.call(network.links) != '[object Array]') {
+
+					if (helpers.isNonArrayObject(network.links)) {
 						Object.keys(network.links).forEach(function (nl_key) {
 							var nl_address = helpers.validateAddress(network.links[nl_key].address);
 							if (nl_address) {
@@ -125,6 +138,7 @@ function Contract(source, env, config)
 	this.default_tx_opts = {};
 	this.synchronizationTimeout = 240000;
 	this.contractName = json.contractName;
+	this._deployedOnThisInstance = false;
 }
 
 Contract.prototype.__proto__ = EventEmitter.prototype;
@@ -134,34 +148,62 @@ Contract.prototype.setAddress = function (address)
 	if (!this.env) {
 		throw new Error("Environment not set.");
 	}
-	var network_id = this.env.network_id;
-
 	address = validateAddress(address);
 
 	if (typeof this.json.networks !== 'object') {
 		this.json.networks = {};
 	}
-	if (typeof this.json.networks[network_id] !== 'object') {
-		this.json.networks[network_id] = {};
+	if (typeof this.json.networks[this.env.network_id] !== 'object') {
+		this.json.networks[this.env.network_id] = {};
 	}
-	this.json.networks[network_id].address = address;
-	this.json.networks[network_id].lastUpdate = Date.now();
+	var network = this.json.networks[this.env.network_id];
+
+	//we build an array of addresses if more than one instance is deployed on the same script execution
+	if (this._deployedOnThisInstance == false) {
+		network.address = address;
+
+		this._deployedOnThisInstance = true;
+	}
+	else {
+		if (typeof network.address === 'string') {
+			network.address = [ network.address, address ];
+		}
+		else if (helpers.isArray(network.address)) {
+			network.address.push(address);
+		}
+		else {
+			network.address = address;
+		}
+	}
+
+	network.lastUpdate = Date.now();
 	this._dirty = true;
 
 	this.emit('address_changed');
 }
 
-Contract.prototype.getAddress = function ()
+Contract.prototype.getAddress = function (index)
 {
 	if (!this.env) {
 		throw new Error("Environment not set.");
 	}
+	if (!index)
+		index = 0;
 	var network_id = this.env.network_id;
 
 	if (typeof this.json.networks === 'object') {
-		if (typeof this.json.networks[network_id] === 'object') {
-			if (typeof this.json.networks[network_id].address === 'string') {
-				return this.json.networks[network_id].address;
+		var network = this.json.networks[this.env.network_id];
+
+		if (typeof network === 'object') {
+			if (typeof network.address === 'string') {
+				if (index == 0 || index == -1)
+					return network.address;
+			}
+			else if (helpers.isArray(network.address)) {
+				if (index >= 0 && index < network.address.length)
+					return network.address[index];
+				if (index >= -network.address.length && index < 0)
+					return network.address[network.address.length + index];
 			}
 		}
 	}
@@ -272,17 +314,25 @@ Contract.prototype.setDefaultTxOptions = function (tx_opts)
 	this.default_tx_opts = tx_opts;
 }
 
-Contract.prototype.deployed = function ()
+Contract.prototype.deployed = function (index)
 {
 	var self = this;
 
 	return new Promise((resolve, reject) => {
+		let address;
+
 		if (!self.env) {
 			reject(new Error("Environment not set."));
 			return;
 		}
 
-		let address = helpers.validateAddress(self.getAddress());
+		try {
+			address = self.getAddress(index);
+			address = helpers.validateAddress(address);
+		}
+		catch (err) {
+			address = null;
+		}
 		if (!address) {
 			reject(new Error("Unable to find deployed contract in network '" + self.env.network_id.toString() + "'."));
 			return;
@@ -491,6 +541,7 @@ function convertToPromise(instance, api_call, _this, makeSync)
 				}
 				else {
 					var timeout = 240000;
+					var tx = res;
 					if (_this.synchronizationTimeout === 0 || typeof _this.synchronizationTimeout !== 'undefined') {
 						timeout = _this.synchronizationTimeout;
 					}
@@ -571,7 +622,7 @@ function isBigNumber(obj)
 			new BigNumber(obj);
 			return true;
 		}
-		catch (e) {
+		catch (err) {
 		}
 	}
 	return false;

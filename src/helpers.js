@@ -1,11 +1,3 @@
-/**
- * [plum-framework]{@link https://github.com/CoinFabrik/plum-framework}
- *
- * @version 1.0.0
- * @author Mauro H. Leggieri
- * @copyright CoinFabrik, 2018
- * @license MIT
- */
 const path = require('path');
 const fs = require('fs');
 
@@ -58,4 +50,14 @@ module.exports.toInteger = function (value)
 		return null;
 	}
 	return null;
+}
+
+module.exports.isArray = function (obj)
+{
+	return (typeof obj === 'object' && Object.prototype.toString.call(obj) == '[object Array]');
+}
+
+module.exports.isNonArrayObject = function (obj)
+{
+	return (typeof obj === 'object' && Object.prototype.toString.call(obj) != '[object Array]');
 }

@@ -20,12 +20,27 @@ contract SampleToken {
     //Events
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Mint(address indexed to, uint256 amount);
+    event Burn(address indexed burner, uint256 amount);
 
     //-----------------------------------------
     //Variables
+    address public owner;
+    string public name;
+    string public symbol;
+    uint8 public decimals;
     uint256 public total_supply;
     mapping(address => uint256) private balances;
     mapping(address => mapping(address => uint256)) private allowed;
+
+    //-----------------------------------------
+    //Functions
+    constructor(string _name, string _symbol, uint8 _decimals) public {
+        owner = msg.sender;
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
 
     /**
      * @dev transfer token for a specified address
@@ -125,34 +140,42 @@ contract SampleToken {
     }
 
     /**
-     * @dev Provides an internal function for destroying tokens. Useful for upgrades.
+     * @dev Function to mint tokens
+     * @param _to The address that will receive the minted tokens.
+     * @param _amount The amount of tokens to mint.
+     * @return A boolean that indicates if the operation was successful.
      */
-    function burnTokens(address account, uint256 value) internal {
-        balances[account] = balances[account].sub(value);
-        total_supply = total_supply.sub(value);
-        emit Transfer(account, 0, value);
+    function mint(address _to, uint256 _amount) onlyOwner public returns (bool) {
+        total_supply = total_supply.add(_amount);
+        balances[_to] = balances[_to].add(_amount);
+        emit Mint(_to, _amount);
+        emit Transfer(address(0), _to, _amount);
+        return true;
     }
 
     /**
-     * @dev Provides an internal minting function.
+     * @dev Burns a specific amount of tokens.
+     * @param amount The amount of token to be burned.
      */
-    function mintInternal(address receiver, uint256 amount) internal {
-        total_supply = total_supply.add(amount);
-        balances[receiver] = balances[receiver].add(amount);
-
-        // Beware: Address zero may be used for special transactions in a future fork.
-        // This will make the mint transaction appear in EtherScan.io
-        // We can remove this after there is a standardized minting event
-        emit Transfer(0, receiver, amount);
-    }
-
-    /* Testing purposes only */
-    function testMint(address receiver, uint256 amount) public {
-        mintInternal(receiver, amount);
+    function burn(uint256 amount) public {
+        require(amount <= balances[msg.sender]);
+        // no need to require amount <= totalSupply, since that would imply the
+        // sender's balance is greater than the totalSupply, which *should* be an assertion failure
+        total_supply = total_supply.sub(amount);
+        balances[msg.sender] = balances[msg.sender].sub(amount);
+        emit Burn(msg.sender, amount);
+        emit Transfer(msg.sender, address(0), amount);
     }
 
     function doClamp(uint256 a) public pure returns (uint256) {
         uint256 c = SafeMath.clamp(a, 1, 100);
         return c;
+    }
+
+    //-----------------------------------------
+    //Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
     }
 }

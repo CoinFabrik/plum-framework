@@ -42,14 +42,24 @@
     "methods": {}
   },
   "networks": {
-    "5777": {
-      "address": "0xf331a78993a244bfd8a49a513b65f58e0c810863",
+    "1531867474707": {
+      "address": "0x02904c1002c888b58f2a105ecf718f38a399469a",
       "lastUpdate": null,
       "links": {}
     },
-    "1531759111061": {
-      "address": "0x47350b5ac79ea2e4c6f79edb1851786617c943c7",
-      "lastUpdate": 1531759111398
+    "1531867549094": {
+      "address": "0x02904c1002c888b58f2a105ecf718f38a399469a",
+      "lastUpdate": null,
+      "links": {}
+    },
+    "1531867592626": {
+      "address": "0x02904c1002c888b58f2a105ecf718f38a399469a",
+      "lastUpdate": null,
+      "links": {}
+    },
+    "1531868678065": {
+      "address": "0x02904c1002c888b58f2a105ecf718f38a399469a",
+      "lastUpdate": 1531868678413
     }
   }
 }

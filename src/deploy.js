@@ -1,11 +1,4 @@
-/**
- * [plum-framework]{@link https://github.com/CoinFabrik/plum-framework}
- *
- * @version 1.0.0
- * @author Mauro H. Leggieri
- * @copyright CoinFabrik, 2018
- * @license MIT
- */
+const BigNumber = require('bignumber.js');
 const cmdLineParams = require('./cmdlineparams.js')
 const Contracts = require('./contracts.js');
 const Environment = require('./environment.js');
@@ -38,7 +31,8 @@ module.exports.run = async function (config, env)
 	await ScriptRunner.run(config.directories.base + 'deployment.js', {
 		web3: env.web3,
 		contracts: contracts,
-		accounts: env.accounts
+		accounts: env.accounts,
+		BigNumber: BigNumber
 	});
 
 	Contracts.saveAll(contracts);

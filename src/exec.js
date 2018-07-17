@@ -1,18 +1,11 @@
-/**
- * [plum-framework]{@link https://github.com/CoinFabrik/plum-framework}
- *
- * @version 1.0.0
- * @author Mauro H. Leggieri
- * @copyright CoinFabrik, 2018
- * @license MIT
- */
 const path = require('path');
+const ganache_cli = require('ganache-cli');
+const BigNumber = require('bignumber.js');
 const cmdLineParams = require('./cmdlineparams.js')
 const Contracts = require('./contracts.js');
 const Environment = require('./environment.js');
 const ScriptRunner = require('./scriptrunner.js');
 const Deploy = require('./deploy.js');
-const ganache_cli = require('ganache-cli');
 
 //------------------------------------------------------------------------------
 
@@ -22,28 +15,38 @@ module.exports.description = 'Run a script inside plum framework environment';
 
 module.exports.run = async function (config)
 {
-	let run_deploy = false;
+	let test_env = false;
 
 	let filename = cmdLineParams.get('file', 'f', true);
 	filename = path.resolve(process.cwd(), filename);
 
 	if (cmdLineParams.get('testenv')) {
+		var ganache_opts = {
+			gasLimit: '6000000',
+			mnemonic: 'master metallic arbitrary sciences throw external reactions kitties before officers rural',
+			secure: cmdLineParams.get('lock-accounts')
+		};
+		if (cmdLineParams.get('log-tx')) {
+			ganache_opts.logger = {
+				log: function () {
+					console.log.apply(console, arguments);
+				}
+			};
+		}
+
 		//override configuration
 		config.network_name = 'testenv';
 		config.networks = {
 			testenv: {
-				provider: ganache_cli.provider({
-					gasLimit: '6000000',
-					mnemonic: 'dead fish racket soul plunger dirty boats cracker mammal nicholas cage',
-				})
+				provider: ganache_cli.provider(ganache_opts)
 			}
 		};
-		run_deploy = true;
+		test_env = true;
 	}
 
 	let env = await Environment.setup(config);
 
-	if (run_deploy || cmdLineParams.get('deploy')) {
+	if (test_env || cmdLineParams.get('deploy')) {
 		await Deploy.run(config, env);
 	}
 
@@ -54,7 +57,8 @@ module.exports.run = async function (config)
 	await ScriptRunner.run(filename, {
 		web3: env.web3,
 		contracts: contracts,
-		accounts: env.accounts
+		accounts: env.accounts,
+		BigNumber: BigNumber
 	});
 
 	console.log("Execution ended.");
@@ -70,4 +74,6 @@ module.exports.showHelp = function ()
 	console.log("  --no-compile:            Skip compilation step if deploying.");
 	console.log("  --recompile:             Recompile all files if deploying.");
 	console.log("  --testenv:               Use Ganache as a test environment (implies deploy).");
+	console.log("  --lock-accounts:         Lock test environment accounts.");
+	console.log("  --log-tx:                Show Ganache output.");
 }

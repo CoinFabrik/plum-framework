@@ -1,11 +1,3 @@
-/**
- * [plum-framework]{@link https://github.com/CoinFabrik/plum-framework}
- *
- * @version 1.0.0
- * @author Mauro H. Leggieri
- * @copyright CoinFabrik, 2018
- * @license MIT
- */
 const Contract = require('./contract.js');
 
 //------------------------------------------------------------------------------
@@ -24,7 +16,7 @@ module.exports.initialize = function (env)
 
 				contract.on('address_changed', function () {
 					var self = this;
-					var address = this.getAddress();
+					var address = self.getAddress(-1); //get the latest assigned address
 
 					Object.keys(contracts).forEach(function (key) {
 						if (key != self.contractName)

@@ -1,15 +1,7 @@
-/**
- * [plum-framework]{@link https://github.com/CoinFabrik/plum-framework}
- *
- * @version 1.0.0
- * @author Mauro H. Leggieri
- * @copyright CoinFabrik, 2018
- * @license MIT
- */
 const path = require('path');
 const fs = require('fs');
-const helpers = require('./helpers.js');
 const BigNumber = require('bignumber.js');
+const helpers = require('./helpers.js');
 const cmdLineParams = require('./cmdlineparams.js')
 
 //------------------------------------------------------------------------------
@@ -52,7 +44,7 @@ module.exports.setup = function ()
 		}
 
 		var config = Object.assign({}, json);
-		if (typeof config.networks !== 'object' || Object.prototype.toString.call(config.networks) == '[object Array]') {
+		if (!helpers.isNonArrayObject(config.networks)) {
 			reject(new Error("Missing networks in configuration file."));
 			return;
 		}
@@ -138,7 +130,7 @@ module.exports.setup = function ()
 		if (typeof config.compiler === 'undefined') {
 			config.compiler = {};
 		}
-		if (typeof config.compiler !== 'object' || Object.prototype.toString.call(config.compiler) == '[object Array]') {
+		if (!helpers.isNonArrayObject(config.compiler)) {
 			reject(new Error("Invalid compiler options in configuration file."));
 			return;
 		}
@@ -177,7 +169,7 @@ module.exports.setup = function ()
 		if (typeof config.directories === 'undefined') {
 			config.directories = {};
 		}
-		if (typeof config.directories !== 'object' || Object.prototype.toString.call(config.directories) == '[object Array]') {
+		if (!helpers.isNonArrayObject(config.directories)) {
 			reject(new Error("Invalid directories section in configuration file."));
 			return;
 		}
