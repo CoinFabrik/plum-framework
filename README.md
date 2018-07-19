@@ -28,4 +28,4 @@ MIT
 
 [Truffle Framework](http://truffleframework.com)
 
-Logo designed by [nicubunu](http:/nicubunu.ro)
+Logo designed by [nicubunu](http://nicubunu.ro)
