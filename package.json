@@ -1,10 +1,10 @@
 {
   "name": "plum-framework",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Plum Ethereum development framework",
   "main": "index.js",
   "bin": {
-    "plum": "./index.js"
+    "plum": "./bin/plum-framework"
   },
   "scripts": {
     "test": "tests\\test.js"

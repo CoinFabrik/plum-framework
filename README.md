@@ -17,7 +17,7 @@ $ npm install -g plum-framework
 Create an empty directory and run the following command to create the base set of files:
 
 ```
-$ plum-framework init
+$ plum init
 ```
 
 ### License

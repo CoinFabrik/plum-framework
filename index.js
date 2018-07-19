@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const Config = require('./src/config.js');
 const Compile = require('./src/compile.js');
 const Deploy = require('./src/deploy.js');
