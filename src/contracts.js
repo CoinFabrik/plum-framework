@@ -11,18 +11,31 @@ module.exports.initialize = function (env)
 			compiled_files = env.config.getCompiledFiles();
 
 			for (let i = 0; i < compiled_files.length; i++) {
-				var contract = new Contract(env.config.directories.build + compiled_files[i], env);
-				contracts[contract.contractName] = contract;
+				var contract;
 
-				contract.on('address_changed', function () {
-					var self = this;
-					var address = self.getAddress(-1); //get the latest assigned address
+				try {
+					contract = new Contract(env.config.directories.build + compiled_files[i], env);
+				}
+				catch (err) {
+					if (!err.toString().toLowerCase().includes('invalid contract')) {
+						throw err;
+					}
+					contract = null;
+				}
 
-					Object.keys(contracts).forEach(function (key) {
-						if (key != self.contractName)
-							contracts[key].addLink(self.contractName, address);
+				if (contract) {
+					contracts[contract.contractName] = contract;
+
+					contract.on('address_changed', function () {
+						var self = this;
+						var address = self.getAddress(-1); //get the latest assigned address
+
+						Object.keys(contracts).forEach(function (key) {
+							if (key != self.contractName)
+								contracts[key].addLink(self.contractName, address);
+						});
 					});
-				});
+				}
 			}
 		}
 		catch (err) {

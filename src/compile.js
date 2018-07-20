@@ -3,6 +3,9 @@ const fs = require('fs');
 const compiler = require('solc-native');
 const cmdLineParams = require('./cmdlineparams.js')
 const Contract = require('./contract.js');
+const helpers = require('./helpers.js');
+
+const MULTI_COMPILE = 4;
 
 //------------------------------------------------------------------------------
 
@@ -12,7 +15,7 @@ module.exports.description = 'Compiles the smart contracts';
 
 module.exports.run = async function (config, recompileAll)
 {
-	var source_files = config.getSourceFiles();
+	let i, source_files = config.getSourceFiles();
 
 	//should us recompile all?
 	if (typeof recompileAll === 'undefined') {
@@ -22,11 +25,8 @@ module.exports.run = async function (config, recompileAll)
 		source_files = filterNewerFiles(config, source_files);
 	}
 
-	for (const source_file of source_files) {
-		var dest_file = config.directories.build + source_file.substr(0, source_file.length - 3) + 'json';
+	await compileFiles(source_files, config);
 
-		await doCompile(config.directories.contracts + source_file, dest_file, config);
-	}
 	console.log("Compilation ended.");
 }
 
@@ -85,55 +85,150 @@ function filterNewerFiles(config, source_files)
 	return final_files;
 }
 
-async function doCompile(source_file, dest_file, config)
+function compileFiles(source_files, config)
 {
-	console.log("Compiling '" + source_file + "'...");
+	return new Promise((resolve, reject) => {
+		let idx = 0;
+		let activeCount = 0;
+		let gotError = null;
 
-	try {
-		var hasErrors = false;
-		var ret = await compiler.compile({
-			files : source_file
-		});
+		const compileNextFile = (_id) => {
+			if ((!gotError) && idx < source_files.length) {
+				activeCount++;
 
-		for (let i = 0; i < ret.errors.length; i++) {
-			var err = ret.errors[i];
+				var src = config.directories.contracts + source_files[idx];
+				var dest = config.directories.build + source_files[idx].substr(0, source_files[idx].length - 3) + 'json';
+				idx++;
 
-			var s = '';
-			if (err.source) {
-				if (err.source.file) {
-					s = err.source.file;
+				console.log(_id.toString() + "> Compiling '" + src + "'...");
+			
+				compileFile(src, config).then((res) => {
+					if (!gotError) {
+						//print output if we didn't got a previous error
+						printWarningsAndErrors(_id, res);
+
+						gotError = saveOutput(res.json, dest, config);
+					}
+
+					activeCount--;
+					compileNextFile(_id);
+				},
+				(err) => {
+					if (!gotError) {
+						//print output if we didn't got a previous error
+						printWarningsAndErrors(_id, err);
+
+						gotError = err;
+					}
+
+					activeCount--;
+					compileNextFile(_id);
+				});
+			}
+			else {
+				if (activeCount == 0) {
+					if (!gotError)
+						resolve();
+					else
+						reject(gotError);
 				}
 			}
-			if (s.length > 0)
-				s += " ";
-			s += '[' + err.severity + '] ' + err.message;
-			console.log(s);
+		};
 
-			if (err.severity == 'error')
-				hasErrors = true;
+		for (let i = 0; i < source_files.length && i < MULTI_COMPILE; i++) {
+			compileNextFile(i + 1);
 		}
-		if (hasErrors) {
-			throw new Error("Compilation failed!");
+	});
+}
+
+function compileFile(source_file, config)
+{
+	return new Promise(async (resolve, reject) => {
+		let warningsAndErrors = [];
+		let err = null;
+		let obj = null;
+
+		try {
+			let hasError = false;
+
+			let ret = await compiler.compile({
+				file: source_file,
+				optimize: config.compilerOptions.optimizer.enabled,
+				optimize_runs: config.compilerOptions.optimizer.runs
+			});
+
+			for (let i = 0; i < ret.errors.length; i++) {
+				let _err = ret.errors[i];
+
+				let s = '';
+				if (_err.source) {
+					if (_err.source.file) {
+						s = _err.source.file;
+					}
+				}
+				if (s.length > 0) {
+					s += " ";
+				}
+				warningsAndErrors.push(s + '[' + _err.severity + '] ' + _err.message);
+
+				if (_err.severity == 'error') {
+					hasError = true;
+				}
+			}
+			if (!hasError) {
+				let name = path.basename(source_file.toLowerCase(), '.sol');
+
+				Object.keys(ret.output).forEach(function (key) {
+					if ((!obj) && key.toLowerCase() == name)
+						obj = ret.output[key];
+				});
+			}
+			else {
+				let _err = new Error("Compilation failed!");
+				_err.warningsAndErrors = warningsAndErrors;
+				throw _err;
+			}
+		}
+		catch (_err) {
+			err = _err;
 		}
 
-		var name = path.basename(source_file.toLowerCase(), '.sol');
-		var obj = null;
+		if (!err) {
+			resolve({
+				json: obj,
+				warningsAndErrors: warningsAndErrors
+			});
+		}
+		else {
+			reject(err);
+		}
+	});
+}
 
-		Object.keys(ret.output).forEach(function (key) {
-			if ((!obj) && key.toLowerCase() == name)
-				obj = ret.output[key];
+function printWarningsAndErrors(_id, obj)
+{
+	if (obj.warningsAndErrors) {
+		obj.warningsAndErrors.forEach((s) => {
+		console.log(_id.toString() + "> " + s);
 		});
-		if (obj) {
-			try {
-				var contract = new Contract(obj, config);
-				await contract.save(dest_file);
-			}
-			catch (err) {
-				throw new Error("Unable to save output: " + err.toString());
-			}
+	}
+}
+
+function saveOutput(json, dest_file, config)
+{
+	try {
+		if (json) {
+			var contract = new Contract(json, config);
+			contract.save(dest_file);
+		}
+		else {
+			//if no output, then create a dummy file
+			helpers.mkdirRecursiveSync(path.dirname(dest_file));
+			fs.writeFileSync(dest_file, "{ }\n");
 		}
 	}
 	catch (err) {
-		throw new Error("Unable to compile: " + err.toString());
+		return new Error("Unable to save output: " + err.toString());
 	}
+	return null;
 }

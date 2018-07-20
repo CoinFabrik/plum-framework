@@ -1,6 +1,6 @@
 {
   "name": "plum-framework",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Plum Ethereum development framework",
   "main": "index.js",
   "bin": {
@@ -27,7 +27,7 @@
   "dependencies": {
     "ganache-cli": "^6.1.4",
     "original-require": "^1.0.1",
-    "solc-native": "^1.0.0",
+    "solc-native": "^1.0.3",
     "web3": "^0.20.6"
   }
 }
