@@ -1,5 +1,4 @@
 const BigNumber = require('bignumber.js');
-const cmdLineParams = require('./cmdlineparams.js')
 const Contracts = require('./contracts.js');
 const Environment = require('./environment.js');
 const Compile = require('./compile.js');
@@ -11,28 +10,34 @@ module.exports.name = 'deploy';
 
 module.exports.description = 'Deploy compiled smart contracts';
 
-module.exports.run = async function (config, env)
+module.exports.run = async function (_options)
 {
-	if (cmdLineParams.get('recompile')) {
-		await Compile.run(config, true);
+	let options = Object.assign(_options);
+
+	if (options.cmdLineParams.get('recompile')) {
+		options.recompileAll = true;
+		await Compile.run(options);
 	}
-	else if (!cmdLineParams.get('no-compile')) {
-		await Compile.run(config, false);
+	else if (!(options.cmdLineParams.get('no-compile'))) {
+		options.recompileAll = false;
+		await Compile.run(options);
 	}
 
-	if (!env) {
-		env = await Environment.setup(config);
+	if (!(options.env)) {
+		options.env = await Environment.setup(options.config);
 	}
 
-	let contracts = await Contracts.initialize(env);
+	let contracts = await Contracts.initialize(options.env);
 
 	console.log("Starting deployment...");
 
-	await ScriptRunner.run(config.directories.base + 'deployment.js', {
-		web3: env.web3,
+	await ScriptRunner.run(options.config.directories.base + 'deployment.js', {
+		web3: options.env.web3,
 		contracts: contracts,
-		accounts: env.accounts,
-		BigNumber: BigNumber
+		accounts: options.env.accounts,
+		BigNumber: BigNumber,
+		network_id: options.env.network_id,
+		arguments: options.cmdLineParams.toArray()
 	});
 
 	Contracts.saveAll(contracts);

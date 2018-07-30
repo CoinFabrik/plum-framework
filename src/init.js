@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const cmdLineParams = require('./cmdlineparams.js')
 const Config = require('./config.js');
 const helpers = require('./helpers.js');
 
@@ -10,10 +9,10 @@ module.exports.name = 'init';
 
 module.exports.description = 'Initializes a folder with a default configuration';
 
-module.exports.run = async function ()
+module.exports.run = async function (options)
 {
 	//get working directory override from command-line
-	var working_directory = cmdLineParams.get('working-directory', 'wd', true);
+	var working_directory = options.cmdLineParams.get('working-directory', 'wd', true);
 	if (working_directory instanceof Error) {
 		throw working_directory;
 	}

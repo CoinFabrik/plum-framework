@@ -13,19 +13,22 @@ module.exports.name = 'compile';
 
 module.exports.description = 'Compiles the smart contracts';
 
-module.exports.run = async function (config, recompileAll)
+module.exports.run = async function (_options)
 {
-	let i, source_files = config.getSourceFiles();
+	let options = Object.assign(_options);
+	let source_files;
 
 	//should us recompile all?
-	if (typeof recompileAll === 'undefined') {
-		recompileAll = cmdLineParams.get('all') ? true : false;
-	}
-	if (!recompileAll) {
-		source_files = filterNewerFiles(config, source_files);
+	if (typeof options.recompileAll === 'undefined') {
+		options.recompileAll = options.cmdLineParams.get('all') ? true : false;
 	}
 
-	await compileFiles(source_files, config);
+	source_files = options.config.getSourceFiles();
+	if (!(options.recompileAll)) {
+		source_files = filterNewerFiles(options.config, source_files);
+	}
+
+	await compileFiles(source_files, options.config);
 
 	console.log("Compilation ended.");
 }
@@ -52,23 +55,62 @@ function filterNewerFiles(config, source_files)
 
 	for (let i = 0; i < source_files.length; i++) {
 		//replace extension
-		var s = source_files[i].substr(0, source_files[i].length - 3).toLowerCase() + 'json';
+		let s = source_files[i].substr(0, source_files[i].length - 3).toLowerCase() + 'json';
 
 		//find the matching compiled file
-		var ndx = compiled_files.findIndex(function(file) {
+		let ndx = compiled_files.findIndex(function(file) {
 			return file.toLowerCase() == s;
 		});
 		if (ndx >= 0) {
 			//match found, check last write time of both
 			try {
-				var src_stat = fs.statSync(config.directories.contracts + source_files[i]);
-				var dest_stat = fs.statSync(config.directories.build + compiled_files[ndx]);
+				let src_stat = fs.statSync(config.directories.contracts + source_files[i]);
+				let dest_stat = fs.statSync(config.directories.build + compiled_files[ndx]);
 				if (src_stat.mtime > dest_stat.mtime) {
 					//source is newer, add to list
 					final_files.push(source_files[i]);
 				}
 				else {
-					console.log("Skipping '" + config.directories.contracts + source_files[i] + "'...");
+					//we still have to check if some of the imported dependencies is newer
+					const regex = /import\s+.*"([^"]*)"\s*;/gm;
+					let j, filename, imported_files = [];
+
+					try {
+						let content = fs.readFileSync(config.directories.contracts + source_files[i], 'utf-8');
+						let m;
+
+						while ((m = regex.exec(content)) !== null) {
+							// This is necessary to avoid infinite loops with zero-width matches
+							if (m.index === regex.lastIndex) {
+								regex.lastIndex++;
+							}
+							if (m.length == 2) {
+								imported_files.push(m[1]);
+							}
+						}
+					}
+					catch (err) {
+						//ignore errors
+					}
+					for (j = 0; j < imported_files.length; j++) {
+						try {
+							filename = path.resolve(config.directories.contracts, imported_files[j]);
+							src_stat = fs.statSync(filename);
+							if (src_stat.mtime > dest_stat.mtime) {
+								break;
+							}
+						}
+						catch (err) {
+							//ignore errors
+						}
+					}
+					if (j < imported_files.length) {
+						//imported file source is newer, add to list
+						final_files.push(source_files[i]);
+					}
+					else {
+						console.log("Skipping '" + config.directories.contracts + source_files[i] + "'...");
+					}
 				}
 			}
 			catch (err) {
@@ -92,6 +134,9 @@ function compileFiles(source_files, config)
 		let activeCount = 0;
 		let gotError = null;
 
+		if (source_files.length == 0) {
+			resolve();
+		}
 		const compileNextFile = (_id) => {
 			if ((!gotError) && idx < source_files.length) {
 				activeCount++;

@@ -2,13 +2,12 @@ const path = require('path');
 const fs = require('fs');
 const BigNumber = require('bignumber.js');
 const helpers = require('./helpers.js');
-const cmdLineParams = require('./cmdlineparams.js')
 
 //------------------------------------------------------------------------------
 
 module.exports.DEFAULT_CONFIG_FILENAME = "plum_settings.js";
 
-module.exports.setup = function ()
+module.exports.setup = function (cmdLineParams)
 {
 	return new Promise((resolve, reject) => {
 		//get working directory override from command-line

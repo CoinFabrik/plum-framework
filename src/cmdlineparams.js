@@ -1,7 +1,56 @@
-function CommandLineParameters()
+module.exports.parse = function (args)
 {
-	var self = this;
-	var args = process.argv.slice(2);
+	if (typeof args === 'string') {
+		let idx, s;
+
+		s = args;
+		args = [];
+
+		idx = 0;
+		while (idx < s.length) {
+			while (idx < s.length && s.charCodeAt(idx) <= 32) {
+				idx++;
+			}
+			if (idx < s.length) {
+				let this_arg = '';
+				let in_quotes = 0;
+
+				while (idx < s.length) {
+					let ch = s.charAt(idx);
+
+					if (in_quotes == 0) {
+						if (ch == '"' || ch == '\'') {
+							in_quotes = ch;
+						}
+						else if (ch <= ' ') {
+							break;
+						}
+						else {
+							this_arg += ch;
+						}
+						idx++;
+					}
+					else {
+						if (ch == '\\' && idx + 1 < s.length && (s.charAt(idx + 1) == '"' || s.charAt(idx + 1) == '\'')) {
+							this_arg += s.charAt(idx + 1);
+							idx++;
+						}
+						else if (ch == in_quotes) {
+							in_quotes = 0;
+						}
+						else {
+							this_arg += ch;
+						}
+						idx++;
+					}
+				}
+				args.push(this_arg);
+			}
+		}
+	}
+	else {
+		args = process.argv.slice(2);
+	}
 	var action = '';
 
 	if (args.length > 0 && args[0].substr(0, 1) != '-') {
@@ -10,8 +59,7 @@ function CommandLineParameters()
 	}
 
 	return {
-		getAction: function ()
-		{
+		getAction: function () {
 			return action;
 		},
 		hasArgs: function () {
@@ -47,8 +95,9 @@ function CommandLineParameters()
 				}
 			}
 			return null;
+		},
+		toArray: function () {
+			return args.slice();
 		}
 	}
 }
-
-module.exports = new CommandLineParameters();

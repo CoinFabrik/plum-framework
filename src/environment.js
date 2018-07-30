@@ -1,6 +1,7 @@
 const Web3 = require('web3');
 const util = require('util');
 const BigNumber = require('bignumber.js');
+const ganache_cli = require('ganache-cli');
 
 //------------------------------------------------------------------------------
 
@@ -70,4 +71,29 @@ module.exports.setup = function (config)
 			return;
 		});
 	});
+}
+
+module.exports.setupTestEnv = function (options)
+{
+	var ganache_opts = {
+		gasLimit: '6000000',
+		mnemonic: 'master metallic arbitrary sciences throw external reactions kitties before officers rural',
+		secure: options.cmdLineParams.get('lock-accounts')
+	};
+	if (options.cmdLineParams.get('log-tx')) {
+		ganache_opts.logger = {
+			log: function () {
+				console.log.apply(console, arguments);
+			}
+		};
+	}
+
+	//override configuration
+	options.config.network_name = 'testenv';
+	options.config.networks = {
+		testenv: {
+			provider: ganache_cli.provider(ganache_opts),
+			network_id: 99999999 //use a fixed network ID
+		}
+	};
 }

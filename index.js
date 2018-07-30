@@ -5,14 +5,17 @@ const Compile = require('./src/compile.js');
 const Deploy = require('./src/deploy.js');
 const Exec = require('./src/exec.js');
 const Init = require('./src/init.js');
-const cmdLineParams = require('./src/cmdlineparams.js')
+const _Console = require('./src/console.js');
+const CmdLineParams = require('./src/cmdlineparams.js')
+const ExitError = require('./src/exiterror.js')
 
 //------------------------------------------------------------------------------
 
-var config;
 var actionCode = null, actionCodes = [
-	Compile, Deploy, Exec, Init
+	Compile, Deploy, Exec, Init, _Console
 ];
+
+var cmdLineParams = CmdLineParams.parse();
 
 if (cmdLineParams.getAction().length == 0) {
 	//no action specified
@@ -51,16 +54,26 @@ if (cmdLineParams.get('help', 'h')) {
 }
 
 if (actionCode == Init) {
-	actionCode.run().catch((err) => {
+	actionCode.run({
+		cmdLineParams: cmdLineParams
+	}).catch((err) => {
 		dumpError(err);
 		process.exit(1);
 	});
 }
 else {
 	//read configuration settings
-	Config.setup().then((config) => {
+	Config.setup(cmdLineParams).then((config) => {
 		//execute action
-		return actionCode.run(config);
+		try{
+			return actionCode.run({
+				config: config,
+				cmdLineParams: cmdLineParams
+			});
+		}
+		catch (err) {
+			return Promise.reject(err);
+		}
 	}).catch((err) => {
 		dumpError(err);
 		process.exit(1);
@@ -88,10 +101,12 @@ function showHelp()
 
 function dumpError(err)
 {
-	if (err && err !== 'silent_quit') {
-		if (err.stack)
-			console.log(err.stack);
-		else
-			console.log(err.toString());
+	if (err) {
+		if (!(err instanceof ExitError)) {
+			if (err.stack)
+				console.log(err.stack);
+			else
+				console.log(err.toString());
+		}
 	}
 }

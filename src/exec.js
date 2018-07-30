@@ -1,7 +1,5 @@
 const path = require('path');
-const ganache_cli = require('ganache-cli');
 const BigNumber = require('bignumber.js');
-const cmdLineParams = require('./cmdlineparams.js')
 const Contracts = require('./contracts.js');
 const Environment = require('./environment.js');
 const ScriptRunner = require('./scriptrunner.js');
@@ -13,51 +11,35 @@ module.exports.name = 'exec';
 
 module.exports.description = 'Run a script inside plum framework environment';
 
-module.exports.run = async function (config)
+module.exports.run = async function (_options)
 {
+	let options = Object.assign(_options);
 	let test_env = false;
 
-	let filename = cmdLineParams.get('file', 'f', true);
+	let filename = options.cmdLineParams.get('file', 'f', true);
 	filename = path.resolve(process.cwd(), filename);
 
-	if (cmdLineParams.get('testenv')) {
-		var ganache_opts = {
-			gasLimit: '6000000',
-			mnemonic: 'master metallic arbitrary sciences throw external reactions kitties before officers rural',
-			secure: cmdLineParams.get('lock-accounts')
-		};
-		if (cmdLineParams.get('log-tx')) {
-			ganache_opts.logger = {
-				log: function () {
-					console.log.apply(console, arguments);
-				}
-			};
-		}
-
-		//override configuration
-		config.network_name = 'testenv';
-		config.networks = {
-			testenv: {
-				provider: ganache_cli.provider(ganache_opts)
-			}
-		};
+	if (options.cmdLineParams.get('testenv')) {
+		Environment.setupTestEnv(options);
 		test_env = true;
 	}
 
-	let env = await Environment.setup(config);
-
-	if (test_env || cmdLineParams.get('deploy')) {
-		await Deploy.run(config, env);
+	if (!(options.env)) {
+		options.env = await Environment.setup(options.config);
 	}
 
-	let contracts = await Contracts.initialize(env);
+	if (test_env || options.cmdLineParams.get('deploy')) {
+		await Deploy.run(options);
+	}
+
+	let contracts = await Contracts.initialize(options.env);
 
 	console.log("Starting execution...");
 
 	await ScriptRunner.run(filename, {
-		web3: env.web3,
+		web3: options.env.web3,
 		contracts: contracts,
-		accounts: env.accounts,
+		accounts: options.env.accounts,
 		BigNumber: BigNumber
 	});
 
