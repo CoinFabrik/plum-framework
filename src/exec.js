@@ -58,4 +58,7 @@ module.exports.showHelp = function ()
 	console.log("  --testenv:               Use Ganache as a test environment (implies deploy).");
 	console.log("  --lock-accounts:         Lock test environment accounts.");
 	console.log("  --log-tx:                Show Ganache output.");
+	console.log(" ");
+	console.log("This action executes a custom script inside the Plum Framework environment. " +
+	            "See documentation for details about how the script is executed.");
 }

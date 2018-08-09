@@ -39,6 +39,9 @@ module.exports.showHelp = function ()
 	console.log(" ");
 	console.log("Where 'options' can be:");
 	console.log("  --all: Recompile all files.");
+	console.log(" ");
+	console.log("This action compiles Solidity files inside `contracts` folder and puts the generated json files inside the `build` folder. " +
+	            "The directory tree inside `contracts` in maintained.");
 }
 
 //------------------------------------------------------------------------------
@@ -141,8 +144,11 @@ function compileFiles(source_files, config)
 			if ((!gotError) && idx < source_files.length) {
 				activeCount++;
 
-				var src = config.directories.contracts + source_files[idx];
-				var dest = config.directories.build + source_files[idx].substr(0, source_files[idx].length - 3) + 'json';
+				let src = config.directories.contracts + source_files[idx];
+				let destFolder = path.dirname(config.directories.build + source_files[idx]);
+				if (destFolder.slice(-1) != path.sep) {
+					destFolder += path.sep;
+				}
 				idx++;
 
 				console.log(_id.toString() + "> Compiling '" + src + "'...");
@@ -152,7 +158,7 @@ function compileFiles(source_files, config)
 						//print output if we didn't got a previous error
 						printWarningsAndErrors(_id, res);
 
-						gotError = saveOutput(res.json, dest, config);
+						gotError = saveOutput(res.json, destFolder, config);
 					}
 
 					activeCount--;
@@ -221,11 +227,13 @@ function compileFile(source_file, config)
 				}
 			}
 			if (!hasError) {
-				let name = path.basename(source_file.toLowerCase(), '.sol');
+				let normalized_source_file = path.normalize(source_file);
+				//let name = path.basename(source_file.toLowerCase(), '.sol');
 
+				obj = {};
 				Object.keys(ret.output).forEach(function (key) {
-					if ((!obj) && key.toLowerCase() == name)
-						obj = ret.output[key];
+					if (path.normalize(ret.output[key].sourceFile) == normalized_source_file)
+						obj[key] = ret.output[key];
 				});
 			}
 			else {
@@ -259,12 +267,14 @@ function printWarningsAndErrors(_id, obj)
 	}
 }
 
-function saveOutput(json, dest_file, config)
+function saveOutput(json, destFolder, config)
 {
 	try {
 		if (json) {
-			var contract = new Contract(json, config);
-			contract.save(dest_file);
+			Object.keys(json).forEach(function (key) {
+				var contract = new Contract(json[key], config);
+				contract.save(destFolder + json[key].contractName + ".json");
+			});
 		}
 		else {
 			//if no output, then create a dummy file

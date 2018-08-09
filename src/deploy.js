@@ -53,4 +53,7 @@ module.exports.showHelp = function ()
 	console.log("  --no-compile:            Skip compilation step.");
 	console.log("  --recompile:             Recompile all files.");
 	console.log("  --network network_name:  Use the specified network.");
+	console.log(" ");
+	console.log("This action executes the `deployment.js` script to deploy compiled smart contracts into an Ethereum network. " +
+	            "See documentation for details about contents of this file.");
 }

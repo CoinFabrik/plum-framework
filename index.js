@@ -97,6 +97,9 @@ function showHelp()
 	for (i = 0; i < actionCodes.length; i++) {
 		console.log('  ' + actionCodes[i].name + ':' + (' '.repeat(1 + maxlen - actionCodes[i].name.length)) + actionCodes[i].description + '.');
 	}
+
+	console.log(" ");
+	console.log("Run `plum action --help` to get additional help on each command.");
 }
 
 function dumpError(err)

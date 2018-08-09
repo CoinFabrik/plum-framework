@@ -179,3 +179,20 @@ contract SampleToken {
         _;
     }
 }
+
+
+/**
+ * @title DummyContractInSameFile
+ * @notice A dummy contract to test support of multiple contracts on the same file
+ */
+contract DummyContractInSameFile {
+    uint256 public value;
+
+    function set(uint256 newValue) public {
+        value = newValue;
+    }
+
+    function get() public view returns (uint256) {
+        return value;
+    }
+}
